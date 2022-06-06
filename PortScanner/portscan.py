@@ -1,9 +1,11 @@
-#!/usr/bin/ python3
-
+#! /usr/bin/python3
+#TODO: Sort results by port number
+#TODO: may need to handle cancelation token in threading
 import argparse
 import ipaddress
 import socket
 from enum import Enum
+from threading import Thread
 
 class State(Enum):
     """
@@ -29,14 +31,19 @@ def main(args):
         print("PORT\tSTATE\tMESSAGE")
     else:
         print("PORT\tSTATE")
-
+    threads = []
     for port in ports:
         try:
-            scan_port(ip,port,timeout)
+            t = Thread(target=scan_port, args=(ip,port,timeout))
+            t.start()
+            threads.append(t)
         except KeyboardInterrupt:
             # Scan terminated by user
             return
-        
+    
+    # Wait for scan to finish
+    for t in threads:
+        t.join()
     
 
 def get_ports(arg_ports):
@@ -53,6 +60,9 @@ def get_ports(arg_ports):
                     ports.append(p)
             else:
                 ports.append(int(port))
+    else:
+        for p in range(1,10001):
+            ports.append(p)
     return set(ports)
 
 def scan_port(ip, port,timeout):
@@ -94,8 +104,8 @@ if __name__ == "__main__":
                         help="Ports to scan.\n\rEx: -p 22; -p 80,443; -p 1-65535")
     parser.add_argument("-v","--verbosity",action="count",default=0,
                         help="Increase verbosity of the scanned port messages.")
-    parser.add_argument("-t","--timeout",type=float, default=0.2,
-                        help="Connection timeout in seconds. Default: 0.2s")
+    parser.add_argument("-t","--timeout",type=float, default=1.0,
+                        help="Connection timeout in seconds. Default: 1s")
     # Parse arguments
     args = parser.parse_args()
     main(args)    
