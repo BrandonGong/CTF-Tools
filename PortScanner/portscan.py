@@ -1,11 +1,10 @@
 #! /usr/bin/python3
-#TODO: Sort results by port number
-#TODO: may need to handle cancelation token in threading
 import argparse
+from concurrent.futures import thread
 import ipaddress
 import socket
 from enum import Enum
-from threading import Thread
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
 class State(Enum):
     """
@@ -17,7 +16,6 @@ class State(Enum):
     def __str__(self):
         return self.name
 
-
 def main(args):
 
     ip = ipaddress.ip_address(args.ip).exploded
@@ -27,24 +25,27 @@ def main(args):
     timeout = args.timeout
     # Scan ports
     print(f"Starting scan of {ip}...")
+
+    results = {}
+    with ThreadPoolExecutor(args.max_threads) as executor:
+        future_to_port = {executor.submit(scan_port,ip,port,timeout): port for port in ports}
+        try:
+            for future in as_completed(future_to_port):
+                port = future_to_port[future]
+                result = future.result()
+                results[port] = result
+        except KeyboardInterrupt:
+            executor.shutdown(wait=False,cancel_futures=True)
+            print("\n\rScan terminiated by user...\n\r")
+            
+
     if verbosity >= 2:
         print("PORT\tSTATE\tMESSAGE")
     else:
-        print("PORT\tSTATE")
-    threads = []
-    for port in ports:
-        try:
-            t = Thread(target=scan_port, args=(ip,port,timeout))
-            t.start()
-            threads.append(t)
-        except KeyboardInterrupt:
-            # Scan terminated by user
-            return
+        print("PORT\tSTATE")    
     
-    # Wait for scan to finish
-    for t in threads:
-        t.join()
-    
+    for port in sorted(results):
+        print_status(port,results[port][0],results[port][1])
 
 def get_ports(arg_ports):
     """
@@ -73,9 +74,9 @@ def scan_port(ip, port,timeout):
         client.settimeout(timeout)
         try:
             client.connect((ip,port))
-            print_status(port,State.OPEN)
+            return (State.OPEN,"")
         except Exception as ex:
-            print_status(port,State.CLOSED,ex)
+            return (State.CLOSED,ex)
         finally:
             client.close()
 
@@ -106,6 +107,8 @@ if __name__ == "__main__":
                         help="Increase verbosity of the scanned port messages.")
     parser.add_argument("-t","--timeout",type=float, default=1.0,
                         help="Connection timeout in seconds. Default: 1s")
+    parser.add_argument("-m","--max_threads",default=1000,type=int,
+                        help="Maximum thread count to use when scanning ports.")
     # Parse arguments
     args = parser.parse_args()
     main(args)    
