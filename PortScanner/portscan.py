@@ -1,6 +1,5 @@
 #! /usr/bin/python3
 import argparse
-from concurrent.futures import thread
 import ipaddress
 import socket
 from enum import Enum
