@@ -107,11 +107,11 @@ async def get_response(sr: StreamReader) -> str:
                 req.write(body)
             return req.getvalue()
 
-def write_log(log, verbosity=0):
+def write_log(log: str, verbosity=0) -> None:
     if _verbosity > verbosity:
         print(log)
 
-async def handle_request(req_reader: StreamReader,req_writer: StreamWriter):
+async def handle_request(req_reader: StreamReader,req_writer: StreamWriter) -> None:
         write_log("Connection recieved...",2)
         req_url, request = await get_proxy_request(req_reader)
         
@@ -134,7 +134,7 @@ async def handle_request(req_reader: StreamReader,req_writer: StreamWriter):
         await req_writer.wait_closed()
         write_log("End Connection",2)
 
-async def main(args):
+async def main(args) -> None:
     # Parse arguments
     port = args.port
     global _headers
